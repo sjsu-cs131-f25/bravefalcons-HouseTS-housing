@@ -1,4 +1,4 @@
-#Dataset Instruction
+##Dataset Instruction
 
 The dataset is too large and can't be stored in this repository. Below are the instructions on how to download dataset. 
 
@@ -13,7 +13,7 @@ To download dataset:
 	- Inside: CSV/TSV files for housing prices, socioeconomic features, POI and indexes. 
 
 
-#Local Setup
+##Local Setup
 1. Place (copy/paste) the extracted dataset folder named 'archive/' inside the 'data/' folder. (Please do this locally on your machine, do not push to GitHub).
 
 If done correctly you should see the following folder structure:
