@@ -1,0 +1,8 @@
+# Ignore raw dataset files
+data/archive/
+data/*.csv
+data/*.tsv
+data/*.zip
+data/*.json
+data/*.xlsx
+
