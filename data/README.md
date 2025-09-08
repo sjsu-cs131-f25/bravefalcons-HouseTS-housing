@@ -8,9 +8,9 @@ To download dataset:
 2. Download the dataset files in zip format. 
 
 3. Extract the content of the ZIP file on your machine.
-   You should see files such as: 
-	- HouseTS.zip -> contains all data. 
-	- Inside: CSV/TSV files for housing prices, socioeconomic features, POI and indexes. 
+   	- you should see folder named archive and inside of it files such as: 
+		- CSV/TSV files for housing prices, socioeconomic features, POI and indexes.
+   		- Folder called DMV_Multi_Data
 
 
 ## Local Setup
