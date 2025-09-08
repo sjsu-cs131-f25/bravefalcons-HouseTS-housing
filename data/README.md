@@ -27,7 +27,8 @@ If done correctly you should see the following folder structure:
 	- HouseTS.csv = 284 MB
 	- DMV_Multi_Data folder with additional files
 
-3. ** Please never commit raw data ** to GitHub. This repo should only include: 	- data/README.md (this file with download instructions)
+3. ** Please never commit raw data ** to GitHub. This repo should only include:
+   	- data/README.md (this file with download instructions)
 	- no .csv or raw data files
 
 ## Notes
