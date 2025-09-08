@@ -32,9 +32,9 @@ If done correctly you should see the following folder structure:
 	- no .csv or raw data files
 
 ## Notes
-	- Coverage: **March 2012 - December 2023**
-	- Size: **~890,000+ records**
-	- Geography: **~6,000 ZIP codes** across **30 U.S metropolitan areas**
+	- Coverage: ** March 2012 - December 2023 **
+	- Size: ** ~890,000+ records **
+	- Geography: ** ~6,000 ZIP codes** across **30 U.S metropolitan areas **
 	- Features: housing prices, socioeconomic indicators, POIs, sales volumes, indexes
 
 This dataset will be used for trend analysis, regional comparisons, and predictive modeling of the U.S housing market. 
