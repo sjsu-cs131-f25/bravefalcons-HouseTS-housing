@@ -6,3 +6,14 @@ data/*.zip
 data/*.json
 data/*.xlsx
 
+# Ignore outputs
+out/
+*.log
+*.txt
+
+# Ignore session logs
+project2_session.txt
+
+# Keep small samples
+!data/samples/
+!data/samples/*.csv
