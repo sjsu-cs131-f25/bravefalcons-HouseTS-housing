@@ -5,21 +5,17 @@
 
 set -euo pipefail
 
-# ----------------------------
 # Parameters & Defaults
-# ----------------------------
 DATA_PATH=${1:-"data/archive/HouseTS.csv"}
 DELIM=${2:-","}
 SAMPLE_SIZE=${3:-1000}
 
-# ----------------------------
 # Prepare directories
-# ----------------------------
 mkdir -p data/samples out
 
-# ----------------------------
-# Step 1: Create sample
-# ----------------------------
+
+# 1: Create sample
+
 echo "Creating 1k sample..."
 head -n1 "$DATA_PATH" > data/samples/sample.csv
 
@@ -28,15 +24,15 @@ if command -v gshuf >/dev/null 2>&1; then
 elif command -v shuf >/dev/null 2>&1; then
     tail -n +2 "$DATA_PATH" | shuf -n "$SAMPLE_SIZE" >> data/samples/sample.csv
 else
-    echo "⚠️ 'shuf' or 'gshuf' not found, using head instead (non-random sample)."
+    echo " 'shuf' or 'gshuf' not found, using head instead (non-random sample)."
     tail -n +2 "$DATA_PATH" | head -n "$SAMPLE_SIZE" >> data/samples/sample.csv
 fi
 
 echo "Sample created: $(wc -l < data/samples/sample.csv) lines"
 
-# ----------------------------
-# Step 2: Frequency tables
-# ----------------------------
+
+# 2: Frequency tables
+
 echo "Creating frequency of cities..."
 cut -d"$DELIM" -f14 data/samples/sample.csv | tail -n +2 | sort | uniq -c | sort -nr | tee out/freq_city.txt > /dev/null
 
@@ -49,24 +45,22 @@ cut -d"$DELIM" -f15 data/samples/sample.csv | tail -n +2 | sort | uniq -c | sort
 echo "Saving top 20 zipcodes..."
 head -n 20 out/freq_zipcode.txt | tee out/top_zipcode.txt > /dev/null
 
-# ----------------------------
-# Step 3: Skinny table
-# ----------------------------
+# 3: Skinny table
+
 echo "Creating skinny table (zipcode, city, price)..."
 cut -d"$DELIM" -f15,14,38 data/samples/sample.csv | sort -u | head -n 100 | tee out/skinny_zip_city_price.csv > /dev/null
 
-# ----------------------------
-# Step 4: Grep examples
-# ----------------------------
+
+# 4: Grep examples
+
 echo "Searching for rows with 'sale'..."
 grep -i "sale" data/samples/sample.csv > out/grep_sale_examples.txt 2> out/grep_sale_errors.txt
 
 echo "Searching for rows without 'sale'..."
 grep -vi "sale" data/samples/sample.csv > out/grep_no_sale_examples.txt 2>> out/grep_sale_errors.txt
 
-# ----------------------------
-# Step 5: Session log
-# ----------------------------
+
+# 5: Session log
 echo "Capturing session log..."
 script -q out/project2_session.txt <<EOF
 head -n 5 data/samples/sample.csv
@@ -80,11 +74,10 @@ head -n 5 out/grep_sale_examples.txt
 head -n 5 out/grep_no_sale_examples.txt
 EOF
 
-# ----------------------------
-# Step 6: Verification summary
-# ----------------------------
+
+# 6: Verification summary
 echo
-echo "✅ Verification Summary:"
+echo "Verification Summary:"
 echo "Sample lines: $(wc -l < data/samples/sample.csv)"
 echo "Top cities (sample):"
 head -n 5 out/freq_city.txt
