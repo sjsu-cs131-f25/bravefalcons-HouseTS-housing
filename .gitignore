@@ -1,4 +1,4 @@
-#Ignore raw dataset files
+# Ignore raw dataset files
 data/archive/
 data/*.csv
 data/*.tsv
@@ -6,14 +6,16 @@ data/*.zip
 data/*.json
 data/*.xlsx
 
-# Ignore outputs
-out/
-*.log
-*.txt
-
-# Ignore session logs
-project2_session.txt
-
-# Keep small samples
+# But keep sample CSVs
 !data/samples/
 !data/samples/*.csv
+
+# Ignore generated outputs
+out/*
+!out/.gitkeep
+
+# Ignore logs
+*.log
+out/*.txt   # only ignore text files in out/
+project2_session.txt
+
