@@ -63,22 +63,19 @@
 
 ## Grep 'sale' Example
 
-```csv
-date,median_sale_price,median_list_price,median_ppsf,median_list_ppsf,homes_sold,pending_sales,new_listings,inventory,median_dom,avg_sale_to_list,sold_above_list
-2014-12-31,177000.0,186200.0,102.9047,107.4369,98.0,101.0,90.0,92.0,55.0,0.9853,0.2143
-2018-05-31,756050.0,799000.0,519.9378,523.9207,82.0,76.0,91.0,46.0,18.0,1.0359,0.5732
-2018-10-31,362450.0,349900.0,306.3448,300.9706,72.0,71.0,86.0,54.0,45.0,0.9744,0.0556
-2022-06-30,347500.0,314500.0,173.2069,173.1302,56.0,62.0,79.0,47.0,19.0,1.0151,0.5714
-2018-01-31,139250.0,134900.0,94.4613,91.4127,72.0,69.0,51.0,96.0,113.0,0.9541,0.1250
+| Date       | Median Sale Price | Median List Price | Median PPSF | Median List PPSF | Homes Sold | Pending Sales | New Listings |
+|------------|------------------:|------------------:|-------------:|------------------:|-----------:|---------------:|-------------:|
+| 2014-12-31 | 177000.0          | 182000.0          | 102.9        | 107.4             | 369.0      | 98.0           | 101.0        |
+| 2018-05-31 | 765684.0          | 799000.0          | 519.9        | 537.8             | 522.0      | 87.0           | 91.0         |
+| 2022-08-30 | 347500.0          | 314580.0          | 173.3        | 173.1             | 362.0      | 62.0           | 79.0         |
 
 ## Grep No 'sale' Examples
 
-date,median_sale_price,median_list_price,median_ppsf,median_list_ppsf,homes_sold,pending_sales,new_listings,inventory,median_dom,avg_sale_to_list,sold_above_list
-2013-01-31,202000.0,331950.0,190.973,223.1820,19.0,22.0,20.0,21.0,91.0,0.9466,0.0
-2017-09-30,150000.0,109000.0,67.5556,68.1250,5.0,5.0,1.0,1.0,105.5,0.9652,0.2
-2013-02-28,115000.0,109900.0,89.8674,81.1952,45.0,61.0,40.0,43.0,52.0,0.9787,0.2667
-2014-06-30,500000.0,527000.0,318.1818,327.5585,119.0,142.0,192.0,107.0,21.0,0.9894,0.2605
-2023-02-28,295000.0,245000.0,230.0289,236.4249,10.0,9.0,7.0,2.0,57.0,1.0167,0.5
+| Date       | Median Sale Price | Median List Price | Median PPSF | Median List PPSF | Homes Sold | Pending Sales | New Listings |
+|------------|------------------:|------------------:|-------------:|------------------:|-----------:|---------------:|-------------:|
+| 2013-01-31 | 202000.0          | 213950.0          | 109.7        | 113.2             | 182.0      | 19.0           | 22.0         |
+| 2017-09-30 | 150000.0          | 160000.0          | 85.6         | 88.1              | 62.0       | 5.0            | 5.0          |
+| 2022-08-30 | 115000.0          | 109000.0          | 87.8         | 87.4              | 152.0      | 45.0           | 61.0         |
 
 
 ## Observations
@@ -86,3 +83,8 @@ date,median_sale_price,median_list_price,median_ppsf,median_list_ppsf,homes_sold
 - 2017 and 2022 are the top years for records.
 - Some zipcodes have multiple entries with varying average prices.
 - The 'sale' vs 'no sale' grep examples show the diversity in the dataset.
+
+## Limitations
+- The dataset has missing or sparse values for some years/zipcodes.  
+- Aggregating by averages hides variation within cities and zipcodes.  
+- The frequency tables and skinny table are built from a sample, not the full dataset, so they may not represent the entire population.  
