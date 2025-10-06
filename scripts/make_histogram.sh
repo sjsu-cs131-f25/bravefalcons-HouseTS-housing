@@ -1,5 +1,4 @@
 #!/bin/bash
-# Step 3 — Plot histogram of cluster sizes (HouseTS)
 
 mkdir -p out
 
@@ -10,7 +9,7 @@ cut -f2 out/entity_counts.tsv | sort -n | uniq -c | awk '{print $2 "\t" $1}' > o
 
 echo " cluster_sizes.tsv created."
 
-# Optional: plot using Python + Matplotlib
+# plot using Python + Matplotlib
 python3 - <<'EOF'
 import matplotlib.pyplot as plt
 
