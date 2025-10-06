@@ -1,5 +1,5 @@
 #!/bin/bash
-# Step 2 — Filter significant clusters (HouseTS)
+# Filter significant clusters (HouseTS)
 
 mkdir -p out
 
