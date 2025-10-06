@@ -1,5 +1,5 @@
 #!/bin/bash
-# Step 1 — Build edges.tsv for HouseTS
+# Build edges.tsv for HouseTS
 
 mkdir -p out
 
