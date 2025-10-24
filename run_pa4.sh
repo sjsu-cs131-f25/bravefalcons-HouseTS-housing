@@ -101,6 +101,90 @@ mv "$TMP2" "$NORM_TSV"
 rm -f "$TMP1"
 log "Normalized -> $NORM_TSV"
 
+
+# =============================
+# Sprint 4 — AWK Quality Filters (Jaafar)
+# =============================
+IN_NORM="out/normalized.tsv"
+OUT_VALID="out/clean_valid.tsv"
+OUT_INV="out/invalid_counts.tsv"
+
+[ -r "$IN_NORM" ] || err "missing $IN_NORM (run normalization first)"
+log "[Sprint4] Filtering invalid rows…"
+
+
+read HN IDX_DATE IDX_ZIP IDX_MSA IDX_PRICE <<EOF
+$(awk -F'\t' '
+  function L(x,i,c,s){for(i=1;i<=length(x);i++){c=substr(x,i,1);s=s ((c>="A"&&c<="Z")?tolower(c):c)};return s}
+  NR==1{
+    hn=NF; date=zip=msa=price=0
+    for(i=1;i<=NF;i++){
+      h=L($i)
+      if(!date && h ~ /(^|_)(date|yearmonth|period|month)($|_)/) date=i
+      if(!zip  && h ~ /(^|_)(zip|zipcode|zip_code|postal)($|_)/) zip=i
+      if(!msa  && h ~ /(msa|cbsa|metro|metropolitan|region|market|city(_full)?)/) msa=i
+      if(!price && h ~ /(median.*(sale)?(_)?price|median.*value|home.*value|house.*price|price_index|^hpi$|(^|_)price($|_)|(^|_)value($|_))/) price=i
+    }
+    printf "%d %d %d %d %d\n", hn, (date?date:0), (zip?zip:0), (msa?msa:0), (price?price:0)
+    exit
+  }' "$IN_NORM")
+EOF
+
+# Fallback
+if [ "$IDX_PRICE" -eq 0 ]; then
+  IDX_PRICE="$(awk -F'\t' -v HN="$HN" '
+    function isn(x){ return x ~ /^([+-]?[0-9]+(\.[0-9]+)?|NA)$/ }
+    NR==1{ next }
+    NR<=200{ for(i=1;i<=HN;i++) if($i!="NA" && isn($i)) numc[i]++ }
+    END{ best=0;bestc=-1; for(i=1;i<=HN;i++) if(numc[i]>bestc){bestc=numc[i];best=i} print (best?best:0) }
+  ' "$IN_NORM")"
+fi
+
+tmp_valid="$(mktemp)"; trap 'rm -f "$tmp_valid"' EXIT
+
+awk -v OFS="\t" -v HN="$HN" -v C_DATE="$IDX_DATE" -v C_ZIP="$IDX_ZIP" -v C_MSA="$IDX_MSA" -v C_PRICE="$IDX_PRICE" '
+  function isnum(x){ return (x ~ /^-?[0-9]+(\.[0-9]+)?$/) }
+  function lower(s,  i,c,t){ for(i=1;i<=length(s);i++){ c=substr(s,i,1); t=t ((c>="A"&&c<="Z")?tolower(c):c) } return t }
+  NR==1{ header=$0; print header > "'"$tmp_valid"'"; next }
+  {
+    bad=0
+    if (NF!=HN){ rc["R1_token_count"]++; bad=1 }
+    if(!bad){
+      # R6
+      for(i=1;i<=NF;i++){ t=lower($i); if(t=="test"||t=="dummy"||t=="placeholder"){ rc["R6_anti_test_rows"]++; bad=1; break } }
+      # R2
+      if(!bad && C_ZIP>0){ z=$C_ZIP; if(z=="NA"||z==""||!(z ~ /^[0-9]{5}(-[0-9]{4})?$/)){ rc["R2_zip_valid"]++; bad=1 } }
+      # R3
+      if(!bad && C_DATE>0){
+        d=$C_DATE
+        if(d=="NA"||d==""){ rc["R3_date_format"]++; bad=1 }
+        else if(!(d ~ /^[0-9]{4}[-/](0[1-9]|1[0-2])([-/](0[1-9]|[12][0-9]|3[01]))?$/)){ rc["R3_date_format"]++; bad=1 }
+        else { split(d,a,/[-/]/); yr=a[1]+0; if(yr<1990||yr>2100){ rc["R3_date_format"]++; bad=1 } }
+      }
+      # R4
+      if(!bad && C_PRICE>0){ p=$C_PRICE; if(p=="NA"||p==""||!isnum(p)||p<0){ rc["R4_price_ge0_numeric"]++; bad=1 } }
+      # R5
+      if(!bad && C_MSA>0){ m=$C_MSA; if(m=="NA"||m==""){ rc["R5_msa_not_NA"]++; bad=1 } }
+    }
+    if(bad){ invalid_total++; next }
+    valid_total++; print $0 > "'"$tmp_valid"'"
+  }
+  END{
+    print "rule","count" > "'"$OUT_INV"'"
+    for(k in rc) printf "%s\t%d\n", k, rc[k] >> "'"$OUT_INV"'"
+    printf "%s\t%d\n","TOTAL_invalid_rows", invalid_total >> "'"$OUT_INV"'"
+    printf "%s\t%d\n","TOTAL_valid_rows",   valid_total   >> "'"$OUT_INV"'"
+  }
+' "$IN_NORM"
+
+# Deterministic sorts
+{ head -n 1 "$tmp_valid"; tail -n +2 "$tmp_valid" | sort; } > "$OUT_VALID"
+{ head -n 1 "$OUT_INV"; tail -n +2 "$OUT_INV" | sort -t "	" -k1,1 -k2,2nr; } > "$OUT_INV.sorted" && mv "$OUT_INV.sorted" "$OUT_INV"
+
+log "[Sprint4] Wrote $OUT_VALID and $OUT_INV"
+
+
+
 # ============================================================
 # SECTION 2: ANALYSIS (EDA + OUTPUT GENERATION)
 # ============================================================
