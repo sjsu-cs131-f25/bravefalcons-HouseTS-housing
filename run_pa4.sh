@@ -13,6 +13,7 @@ RAW_PATH="${1:-}"; [[ -n "${RAW_PATH}" ]] || err "usage: ./run_pa4.sh <file_or_f
 
 chmod -R g+rX "$RAW_PATH" 2>/dev/null || true
 export LC_ALL=C
+TAB="$(printf '\t')"   # BSD/macOS-safe tab delimiter for sort -t
 
 req_tools="sed awk sort head tail tee grep"
 for t in $req_tools; do command -v "$t" >/dev/null || err "missing required tool: $t"; done
@@ -112,7 +113,6 @@ OUT_INV="out/invalid_counts.tsv"
 [ -r "$IN_NORM" ] || err "missing $IN_NORM (run normalization first)"
 log "[Sprint4] Filtering invalid rows…"
 
-
 read HN IDX_DATE IDX_ZIP IDX_MSA IDX_PRICE <<EOF
 $(awk -F'\t' '
   function L(x,i,c,s){for(i=1;i<=length(x);i++){c=substr(x,i,1);s=s ((c>="A"&&c<="Z")?tolower(c):c)};return s}
@@ -158,8 +158,8 @@ awk -v OFS="\t" -v HN="$HN" -v C_DATE="$IDX_DATE" -v C_ZIP="$IDX_ZIP" -v C_MSA="
       if(!bad && C_DATE>0){
         d=$C_DATE
         if(d=="NA"||d==""){ rc["R3_date_format"]++; bad=1 }
-        else if(!(d ~ /^[0-9]{4}[-/](0[1-9]|1[0-2])([-/](0[1-9]|[12][0-9]|3[01]))?$/)){ rc["R3_date_format"]++; bad=1 }
-        else { split(d,a,/[-/]/); yr=a[1]+0; if(yr<1990||yr>2100){ rc["R3_date_format"]++; bad=1 } }
+        else if(!(d ~ /^[0-9]{4}(-|\/)(0[1-9]|1[0-2])((-|\/)(0[1-9]|[12][0-9]|3[01]))?$/)){ rc["R3_date_format"]++; bad=1 }
+        else { split(d,a,/(-|\/)/); yr=a[1]+0; if(yr<1990||yr>2100){ rc["R3_date_format"]++; bad=1 } }
       }
       # R4
       if(!bad && C_PRICE>0){ p=$C_PRICE; if(p=="NA"||p==""||!isnum(p)||p<0){ rc["R4_price_ge0_numeric"]++; bad=1 } }
@@ -171,19 +171,17 @@ awk -v OFS="\t" -v HN="$HN" -v C_DATE="$IDX_DATE" -v C_ZIP="$IDX_ZIP" -v C_MSA="
   }
   END{
     print "rule","count" > "'"$OUT_INV"'"
-    for(k in rc) printf "%s\t%d\n", k, rc[k] >> "'"$OUT_INV"'"
+    for(k in rc) printf "%s\t%d\n", k, cnt=(k in rc?rc[k]:0) >> "'"$OUT_INV"'"
     printf "%s\t%d\n","TOTAL_invalid_rows", invalid_total >> "'"$OUT_INV"'"
     printf "%s\t%d\n","TOTAL_valid_rows",   valid_total   >> "'"$OUT_INV"'"
   }
 ' "$IN_NORM"
 
-# Deterministic sorts
+# Deterministic sorts (no pipes that can SIGPIPE under set -e -o pipefail)
 { head -n 1 "$tmp_valid"; tail -n +2 "$tmp_valid" | sort; } > "$OUT_VALID"
-{ head -n 1 "$OUT_INV"; tail -n +2 "$OUT_INV" | sort -t "	" -k1,1 -k2,2nr; } > "$OUT_INV.sorted" && mv "$OUT_INV.sorted" "$OUT_INV"
+{ head -n 1 "$OUT_INV"; tail -n +2 "$OUT_INV" | sort -t "$TAB" -k1,1 -k2,2nr; } > "$OUT_INV.sorted" && mv "$OUT_INV.sorted" "$OUT_INV"
 
 log "[Sprint4] Wrote $OUT_VALID and $OUT_INV"
-
-
 
 # ============================================================
 # SECTION 2: ANALYSIS (EDA + OUTPUT GENERATION)
@@ -250,26 +248,30 @@ make_freq() {
   awk -F'\t' -v C="$idx" '
     NR>1 && $C!="NA" && $C!=""{ cnt[$C]++ }
     END{ print "value\tcount"; for(k in cnt) printf "%s\t%d\n", k, cnt[k] }
-  ' "$NORM_TSV" | sort -t"$'\t'" -k2,2nr -k1,1 > "$out"
+  ' "$NORM_TSV" | sort -t "$TAB" -k2,2nr -k1,1 > "$out"
   log "Freq -> $out"
 }
 
-IFS=',' read -r F1 F2 REST <<<"$FREQ_COLS"
-for COL in $FREQ_COLS; do
+# Frequency tables for each chosen column
+for COL in ${FREQ_COLS//,/ }; do
   [ -n "$COL" ] || continue
   SAFE="$(printf '%s' "$COL" | sed -E 's#[ /]+#_#g')"
   make_freq "$COL" "$OUTDIR/freq_${SAFE}.tsv"
 done
 
+# ---- Top-N generation (no SIGPIPE) ----
 TOP_IDX="$(col_index "$TOP_COL" || true)"
 if [ -n "$TOP_IDX" ]; then
-  { head -n1 "$NORM_TSV"; tail -n +2 "$NORM_TSV" | sort -t"$'\t'" -k"$TOP_IDX","$TOP_IDX"nr -k1,1; } \
-  | head -n $((TOPN+1)) > "$OUTDIR/top_$(printf '%s' "$TOP_COL" | sed -E 's#[[:space:]]+#_#g')_${TOPN}.tsv"
+  TOP_SORTED="$OUTDIR/_top_all.tsv"
+  { head -n1 "$NORM_TSV"; tail -n +2 "$NORM_TSV" | sort -t "$TAB" -k"$TOP_IDX","$TOP_IDX"nr -k1,1; } > "$TOP_SORTED"
+  head -n $((TOPN+1)) "$TOP_SORTED" > "$OUTDIR/top_$(printf '%s' "$TOP_COL" | sed -E 's#[[:space:]]+#_#g')_${TOPN}.tsv"
+  rm -f "$TOP_SORTED"
   log "TopN -> $OUTDIR/top_$(printf '%s' "$TOP_COL" | sed -E 's#[[:space:]]+#_#g')_${TOPN}.tsv"
 else
   log "WARN: Top-N column not found: $TOP_COL"
 fi
 
+# Skinny table
 PROJ_IDX=""
 IFS=',' read -ra WANT <<<"$SKINNY_COLS"
 for nm in "${WANT[@]}"; do
@@ -288,11 +290,16 @@ else
 fi
 log "Skinny -> $OUTDIR/skinny.tsv"
 
+# Final “wrote” summary
 printf 'Wrote:\n  - %s\n' \
   "$OUTDIR/sample_before.txt" \
   "$OUTDIR/sample_after.txt" \
   "$OUTDIR/normalized.tsv" \
+  "$OUTDIR/clean_valid.tsv" \
+  "$OUTDIR/invalid_counts.tsv" \
   "$OUTDIR/skinny.tsv" \
   $(printf "%s\n" "$OUTDIR"/freq_*.tsv 2>/dev/null || true) \
   $(printf "%s\n" "$OUTDIR"/top_*.tsv 2>/dev/null || true) \
   | sed '/^$/d'
+
+

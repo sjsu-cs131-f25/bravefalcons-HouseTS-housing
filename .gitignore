@@ -19,3 +19,5 @@ out/*
 out/*.txt   # only ignore text files in out/
 project2_session.txt
 
+out/
+logs/
