@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ------------------------------------------------------------
+# Sprint 4 — Brave Falcons
+# Repo: https://github.com/sjsu-cs131-f25/bravefalcons-HouseTS-housing
+# Implements: SED cleaning, AWK quality filters (R1–R6), freq tables,
+# Top-N, skinny table, determinism, plus ratios/buckets, temporal,
+# and signal discovery outputs.
+# DoD: one-command run -> out/, logs/ ; strict mode; relative paths;
+# LC_ALL=C; no outputs committed.
+# ------------------------------------------------------------
+
 OUTDIR="out"
 LOGDIR="logs"
 mkdir -p "$OUTDIR" "$LOGDIR"
@@ -13,9 +23,9 @@ RAW_PATH="${1:-}"; [[ -n "${RAW_PATH}" ]] || err "usage: ./run_pa4.sh <file_or_f
 
 chmod -R g+rX "$RAW_PATH" 2>/dev/null || true
 export LC_ALL=C
-TAB="$(printf '\t')"   # BSD/macOS-safe tab delimiter for sort -t
+TAB="$(printf '\t')"   # BSD/macOS-safe delimiter for sort -t
 
-req_tools="sed awk sort head tail tee grep"
+req_tools="sed awk sort head tail tee grep cut uniq join paste wc"
 for t in $req_tools; do command -v "$t" >/dev/null || err "missing required tool: $t"; done
 
 pick_csv() {
@@ -64,11 +74,11 @@ NORM_TSV="$OUTDIR/normalized.tsv"
 head -n 20 "$INPUT_CSV" > "$OUTDIR/sample_before.txt"
 
 sed -E $'
-  s/\r$//;
-  1s/^\xEF\xBB\xBF//;
+  s/\r$//;                         # strip CR
+  1s/^\xEF\xBB\xBF//;              # strip UTF-8 BOM
   s/^[[:space:]]+//; s/[[:space:]]+$//;
-  s/[“”]/"/g; s/[‘’]/'\''/g;
-  s/[][(){}]//g;
+  s/[“”]/"/g; s/[‘’]/'\''/g;       # normalize smart quotes
+  s/[][(){}]//g;                   # strip simple brackets
 ' "$INPUT_CSV" > "$TMP1"
 
 awk -v OFS="\t" -F',' '
@@ -102,13 +112,12 @@ mv "$TMP2" "$NORM_TSV"
 rm -f "$TMP1"
 log "Normalized -> $NORM_TSV"
 
-
 # =============================
 # Sprint 4 — AWK Quality Filters (Jaafar)
 # =============================
-IN_NORM="out/normalized.tsv"
-OUT_VALID="out/clean_valid.tsv"
-OUT_INV="out/invalid_counts.tsv"
+IN_NORM="$NORM_TSV"
+OUT_VALID="$OUTDIR/clean_valid.tsv"
+OUT_INV="$OUTDIR/invalid_counts.tsv"
 
 [ -r "$IN_NORM" ] || err "missing $IN_NORM (run normalization first)"
 log "[Sprint4] Filtering invalid rows…"
@@ -130,8 +139,8 @@ $(awk -F'\t' '
   }' "$IN_NORM")
 EOF
 
-# Fallback
-if [ "$IDX_PRICE" -eq 0 ]; then
+# Fallback: choose most numeric-looking column as price
+if [ "${IDX_PRICE:-0}" -eq 0 ]; then
   IDX_PRICE="$(awk -F'\t' -v HN="$HN" '
     function isn(x){ return x ~ /^([+-]?[0-9]+(\.[0-9]+)?|NA)$/ }
     NR==1{ next }
@@ -150,20 +159,20 @@ awk -v OFS="\t" -v HN="$HN" -v C_DATE="$IDX_DATE" -v C_ZIP="$IDX_ZIP" -v C_MSA="
     bad=0
     if (NF!=HN){ rc["R1_token_count"]++; bad=1 }
     if(!bad){
-      # R6
+      # R6 anti test/dummy rows
       for(i=1;i<=NF;i++){ t=lower($i); if(t=="test"||t=="dummy"||t=="placeholder"){ rc["R6_anti_test_rows"]++; bad=1; break } }
-      # R2
+      # R2 ZIP
       if(!bad && C_ZIP>0){ z=$C_ZIP; if(z=="NA"||z==""||!(z ~ /^[0-9]{5}(-[0-9]{4})?$/)){ rc["R2_zip_valid"]++; bad=1 } }
-      # R3
+      # R3 Date
       if(!bad && C_DATE>0){
         d=$C_DATE
         if(d=="NA"||d==""){ rc["R3_date_format"]++; bad=1 }
         else if(!(d ~ /^[0-9]{4}(-|\/)(0[1-9]|1[0-2])((-|\/)(0[1-9]|[12][0-9]|3[01]))?$/)){ rc["R3_date_format"]++; bad=1 }
         else { split(d,a,/(-|\/)/); yr=a[1]+0; if(yr<1990||yr>2100){ rc["R3_date_format"]++; bad=1 } }
       }
-      # R4
+      # R4 Price
       if(!bad && C_PRICE>0){ p=$C_PRICE; if(p=="NA"||p==""||!isnum(p)||p<0){ rc["R4_price_ge0_numeric"]++; bad=1 } }
-      # R5
+      # R5 MSA not NA (if present)
       if(!bad && C_MSA>0){ m=$C_MSA; if(m=="NA"||m==""){ rc["R5_msa_not_NA"]++; bad=1 } }
     }
     if(bad){ invalid_total++; next }
@@ -171,16 +180,15 @@ awk -v OFS="\t" -v HN="$HN" -v C_DATE="$IDX_DATE" -v C_ZIP="$IDX_ZIP" -v C_MSA="
   }
   END{
     print "rule","count" > "'"$OUT_INV"'"
-    for(k in rc) printf "%s\t%d\n", k, cnt=(k in rc?rc[k]:0) >> "'"$OUT_INV"'"
+    for(k in rc) printf "%s\t%d\n", k, rc[k] >> "'"$OUT_INV"'"
     printf "%s\t%d\n","TOTAL_invalid_rows", invalid_total >> "'"$OUT_INV"'"
     printf "%s\t%d\n","TOTAL_valid_rows",   valid_total   >> "'"$OUT_INV"'"
   }
 ' "$IN_NORM"
 
-# Deterministic sorts (no pipes that can SIGPIPE under set -e -o pipefail)
+# Deterministic sorts
 { head -n 1 "$tmp_valid"; tail -n +2 "$tmp_valid" | sort; } > "$OUT_VALID"
 { head -n 1 "$OUT_INV"; tail -n +2 "$OUT_INV" | sort -t "$TAB" -k1,1 -k2,2nr; } > "$OUT_INV.sorted" && mv "$OUT_INV.sorted" "$OUT_INV"
-
 log "[Sprint4] Wrote $OUT_VALID and $OUT_INV"
 
 # ============================================================
@@ -259,7 +267,7 @@ for COL in ${FREQ_COLS//,/ }; do
   make_freq "$COL" "$OUTDIR/freq_${SAFE}.tsv"
 done
 
-# ---- Top-N generation (no SIGPIPE) ----
+# Top-N (SIGPIPE-safe)
 TOP_IDX="$(col_index "$TOP_COL" || true)"
 if [ -n "$TOP_IDX" ]; then
   TOP_SORTED="$OUTDIR/_top_all.tsv"
@@ -290,7 +298,7 @@ else
 fi
 log "Skinny -> $OUTDIR/skinny.tsv"
 
-# Final “wrote” summary
+# First wrote summary (core artifacts)
 printf 'Wrote:\n  - %s\n' \
   "$OUTDIR/sample_before.txt" \
   "$OUTDIR/sample_after.txt" \
@@ -302,4 +310,144 @@ printf 'Wrote:\n  - %s\n' \
   $(printf "%s\n" "$OUTDIR"/top_*.tsv 2>/dev/null || true) \
   | sed '/^$/d'
 
+# ============================================================
+# SECTION 3: Ratios, buckets, and per-entity summaries (AWK)
+# ============================================================
+IN_CLEAN="$OUT_VALID"
+
+awk -F'\t' -v OFS="$TAB" '
+  function isn(x){ return (x ~ /^-?[0-9]+(\.[0-9]+)?$/) }
+  NR==1{
+    for(i=1;i<=NF;i++){ h[tolower($i)]=i }
+    zs = (("zipcode" in h)?h["zipcode"]:0)
+    sp = (("median_sale_price" in h)?h["median_sale_price"]:0)
+    lp = (("median_list_price" in h)?h["median_list_price"]:0)
+    if(!zs || !sp || !lp){ exit 0 }
+    next
+  }
+  {
+    z=$zs; s=$sp; l=$lp
+    if(!isn(s) || !isn(l) || l<=0){ bucket="ZERO"; ratio=0 }
+    else {
+      ratio = s/l
+      if(ratio>=1.05) bucket="HI"
+      else if(ratio>=0.98) bucket="MID"
+      else bucket="LO"
+    }
+    if(z!="" && z!="NA"){
+      cnt[z]++; sumr[z]+=ratio
+      if(bucket=="HI") hi[z]++
+      else if(bucket=="MID") mid[z]++
+      else if(bucket=="LO") lo[z]++
+      else zero[z]++
+    }
+  }
+  END{
+    print "zipcode","count","avg_sale_list_ratio","HI","MID","LO","ZERO"
+    for(z in cnt){
+      avg = (cnt[z]?sumr[z]/cnt[z]:0)
+      printf "%s%s%d%s%.6f%s%d%s%d%s%d%s%d\n", z,OFS,cnt[z],OFS,avg,OFS,(hi[z]+0),OFS,(mid[z]+0),OFS,(lo[z]+0),OFS,(zero[z]+0)
+    }
+  }
+' "$IN_CLEAN" \
+| sort -t "$TAB" -k3,3nr -k1,1 \
+> "$OUTDIR/affordability_summary.tsv"
+
+log "Ratios & buckets -> $OUTDIR/affordability_summary.tsv"
+
+# ============================================================
+# SECTION 4: Temporal structure (YYYY-MM) with count & avg metric
+# ============================================================
+awk -F'\t' -v OFS="$TAB" '
+  function isn(x){ return (x ~ /^-?[0-9]+(\.[0-9]+)?$/) }
+  NR==1{
+    for(i=1;i<=NF;i++){ h[tolower($i)]=i }
+    cd = (("date" in h)?h["date"]:0)
+    sp = (("median_sale_price" in h)?h["median_sale_price"]:0)
+    if(!cd || !sp){ exit 0 }
+    next
+  }
+  {
+    d=$cd; s=$sp
+    gsub(/\/+/,"-", d)                 # normalize slashes to dashes
+    mon = substr(d,1,7)                # YYYY-MM or first 7 chars
+    if(mon ~ /^[0-9]{4}-[0-1][0-9]$/){
+      c[mon]++
+      if(isn(s)){ sum[mon]+=s; n[mon]++ }
+    }
+  }
+  END{
+    print "month","rows","avg_median_sale_price"
+    for(m in c){
+      avg = (n[m]?sum[m]/n[m]:0)
+      printf "%s%s%d%s%.6f\n", m,OFS,c[m],OFS,avg
+    }
+  }
+' "$IN_CLEAN" \
+| sort -t "$TAB" -k1,1 \
+> "$OUTDIR/month_summary.tsv"
+
+log "Temporal -> $OUTDIR/month_summary.tsv"
+
+# ============================================================
+# SECTION 5: Signal discovery (numeric): z-scores on median_sale_price
+# ============================================================
+
+read MEAN SD <<<"$(
+  awk -F'\t' '
+    function isn(x){ return (x ~ /^-?[0-9]+(\.[0-9]+)?$/) }
+    NR==1{
+      for(i=1;i<=NF;i++){ h[tolower($i)]=i }
+      sp = (("median_sale_price" in h)?h["median_sale_price"]:0)
+      if(!sp){ exit }
+      next
+    }
+    {
+      s=$sp
+      if(isn(s)){ n++; sum+=s; sumsq+=(s*s) }
+    }
+    END{
+      if(n>1){
+        mean = sum/n
+        var = (sumsq - n*mean*mean)/(n-1)
+        sd = (var>0?sqrt(var):0)
+        printf "%.10f %.10f\n", mean, sd
+      }
+    }
+  ' "$IN_CLEAN"
+)"
+
+awk -F'\t' -v OFS="$TAB" -v MEAN="${MEAN:-0}" -v SD="${SD:-0}" '
+  function isn(x){ return (x ~ /^-?[0-9]+(\.[0-9]+)?$/) }
+  NR==1{
+    for(i=1;i<=NF;i++){ h[tolower($i)]=i }
+    zs = (("zipcode" in h)?h["zipcode"]:0)
+    sp = (("median_sale_price" in h)?h["median_sale_price"]:0)
+    if(!zs || !sp){ exit 0 }
+    next
+  }
+  {
+    z=$zs; s=$sp
+    if(z!="" && z!="NA" && isn(s)){ sum[z]+=s; cnt[z]++ }
+  }
+  END{
+    print "zipcode","avg_median_sale_price","z_score","abs_z"
+    for(z in cnt){
+      avg = sum[z]/cnt[z]
+      zsc = (SD>0 ? (avg-MEAN)/SD : 0)
+      printf "%s%s%.6f%s%.6f%s%.6f\n", z,OFS,avg,OFS,zsc,OFS,(zsc<0?-zsc:zsc)
+    }
+  }
+' "$IN_CLEAN" \
+| sort -t "$TAB" -k4,4nr -k1,1 \
+> "$OUTDIR/signals.tsv"
+
+log "Signals -> $OUTDIR/signals.tsv"
+
+# Final wrote summary (new artifacts)
+printf 'Wrote:\n  - %s\n' \
+  "$OUTDIR/affordability_summary.tsv" \
+  "$OUTDIR/month_summary.tsv" \
+  "$OUTDIR/signals.tsv" \
+  | sed '/^$/d'
 
