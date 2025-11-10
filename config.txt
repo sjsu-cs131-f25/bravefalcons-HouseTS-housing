@@ -1,0 +1,13 @@
+# PySpark Environment Configuration
+
+Environment: Local Spark
+Operating System: macOS
+Python Version: 3.9
+Java Version: 17
+
+Data Directory: ./HouseTS.csv
+Output Directory: ./skinny_table.parquet
+
+Verification:
+Spark session started successfully and version printed in terminal logs.
+All configurations match project requirements and everything was done according to the instructions.
