@@ -1,25 +1,20 @@
-# Ignore raw dataset files
-data/archive/
-data/*.csv
-data/*.tsv
-data/*.zip
-data/*.json
-data/*.xlsx
+# macOS
+.DS_Store
 
-# But keep sample CSVs
-!data/samples/
-!data/samples/*.csv
+# Python
+__pycache__/
+*.pyc
+.venv/
 
-# Ignore generated outputs
-out/*
-!out/.gitkeep
+# Data / big artifacts
+*.csv
+*.tsv
+*.parquet/
+skinny_table.parquet/
+freq_city.parquet/
+top10_by_price.parquet/
+monthly_summary.parquet/
 
-# Ignore logs
-*.log
-out/*.txt   # only ignore text files in out/
-project2_session.txt
+# Jupyter/IDE
+.ipynb_checkpoints/
 
-out/
-logs/
-out/
-logs/
